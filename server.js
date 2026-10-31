@@ -3,6 +3,7 @@ import pg from 'pg';
 import jwt from 'jsonwebtoken';
 import bcrypt from 'bcryptjs';
 import crypto from 'crypto';
+import path from 'path';
 import helmet from 'helmet';
 import rateLimit from 'express-rate-limit';
 import Razorpay from 'razorpay';
@@ -15,11 +16,13 @@ const db = new pg.Pool({ connectionString: DATABASE_URL });
 const google = new OAuth2Client(GOOGLE_CLIENT_ID);
 const rzp = new Razorpay({ key_id: RAZORPAY_KEY_ID, key_secret: RAZORPAY_KEY_SECRET });
 const app = express();
-app.use(helmet());
+app.use(helmet({ contentSecurityPolicy: false, crossOriginOpenerPolicy: false })); // CSP off so Google/Razorpay scripts load
+app.get('/', (_q, r) => r.sendFile(path.resolve('index.html')));
+app.get('/config', (_q, r) => r.json({ googleClientId: GOOGLE_CLIENT_ID }));
 
 // ---------- helpers ----------
 const wrap = fn => (req, res, next) => fn(req, res, next).catch(e => {
-  console.error(e); res.status(e.status || 500).json({ error: e.status ? e.message : 'Server error' });
+  console.error(e); const bad = e.name === 'ZodError'; res.status(bad ? 400 : e.status || 500).json({ error: bad ? 'Please check the form fields' : e.status ? e.message : 'Server error' });
 });
 const fail = (status, message) => Object.assign(new Error(message), { status });
 const audit = (c, actor, action, entity, id, meta = {}) =>
